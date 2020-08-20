@@ -51,7 +51,10 @@ params = box.Box(training_params)
 
 # Build neural networks
 policy_net = Network(network_params, device).to(device)
-# TODO: build the target network and set its weights to policy_net's wights (use state_dict from pytorch)
+target_net = Network(network_params, device).to(device)
+target_net.load_state_dict(policy_net.state_dict())
+
+
 
 
 optimizer = optim.Adam(policy_net.parameters())
@@ -105,14 +108,16 @@ def train_model():
     # Pros tips: First pass all s_batch through the network
     #            and then choose the relevant action for each state using the method 'gather'
     # TODO: fill curr_Q
-    curr_Q = None
+    curr_Q = policy_net.forward(state_batch).gather(1,action_batch)
 
     # Compute expected_Q (target value) for all states.
     # Don't forget that for terminal states we don't add the value of the next state.
     # Pros tips: Calculate the values for all next states ( Q_(s', max_a(Q_(s')) )
     #            and then mask next state's value with 0, where not_done is False (i.e., done).
     # TODO: fill expected_Q
-    expected_Q = None
+    next_estimate = target_net.forward(next_states_batch)
+    expected_not_masked = reward_batch + (training_params.gamma * torch.max(next_estimate,1)[0])
+    expected_Q = expected_not_masked[~not_done_batch] = 0.0
 
     # Compute Huber loss. Smoother than MSE
     loss = F.smooth_l1_loss(curr_Q, expected_Q)
@@ -208,8 +213,10 @@ for i_episode in range(max_episodes):
 
         # soft target update
         if params.target_update == 'soft':
-            # TODO: Implement soft target update.
-            raise NotImplementedError
+            for target_param, param in zip(target_net.parameters(), policy_net.parameters()):
+                target_param.data.copy_(
+                    target_param.data * (1.0 - training_params['tau']) + param.data * training_params['tau'])
+
 
         if done or t >= max_score:
             print("Episode: {} | Current target score {} | Score: {}".format(i_episode+1, task_score, score))
@@ -226,9 +233,11 @@ for i_episode in range(max_episodes):
 
     # hard target update. Copying all weights and biases in DQN
     if params.target_update == 'hard':
-        # TODO: Implement hard target update.
         # Copy the weights from policy_net to target_net after every x episodes
-        raise NotImplementedError
+        if i_episode % 15 == 0:
+            target_net.load_state_dict(policy_net.state_dict())
+
+
 
     # update task score
     if min(all_scores[-5:]) > task_score:

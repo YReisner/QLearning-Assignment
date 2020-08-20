@@ -1,4 +1,4 @@
-import random
+import numpy as np
 from collections import namedtuple
 
 Transition = namedtuple('Transition',('state', 'action', 'next_state', 'reward', 'not_done'))
@@ -13,13 +13,19 @@ class ReplayBuffer(object):
 
     def push(self, *args):
         """Saves a transition."""
-        # TODO
-        raise NotImplementedError
+        pushed = Transition(*args)
+        if len(self.memory) == self.capacity:
+            self.memory[self.position] = pushed
+        else:
+            self.memory.append(pushed)
+        self.position = (self.position + 1) % self.capacity
+
 
 
     def sample(self, batch_size):
-        # TODO
-        raise NotImplementedError
+        indices = np.random.choice(len(self.memory),batch_size,replace=False)
+        return self.memory[indices]
+
 
 
     def __len__(self):

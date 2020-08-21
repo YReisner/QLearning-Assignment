@@ -261,5 +261,3 @@ print('Final task score = ', task_score)
 
 plt.ioff()
 plt.show()
-
-cartpole_play()

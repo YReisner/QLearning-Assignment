@@ -16,6 +16,8 @@ import box
 from buffer import ReplayBuffer
 from model import Network
 
+np.random.seed(42)
+
 Transition = namedtuple('Transition',('state', 'action', 'next_state', 'reward', 'not_done'))
 
 env = gym.make('CartPole-v0').unwrapped
@@ -81,9 +83,13 @@ def select_action(s):
     :param s: the current state of the environment
     :return: a tensor of size [1,1] (use 'return torch.tensor([[action]], device=device, dtype=torch.long)')
     '''
-    # TODO: implement action selection.
     global epsilon
-    raise NotImplementedError
+    if np.random.random() < epsilon:
+        action = np.random.randint(2,size=1)
+    else:
+        res = policy_net.forward(s)
+        action = [torch.argmax(res)]
+    return  torch.tensor([action], device=device, dtype=torch.long)
 
 
 def train_model():
@@ -102,22 +108,23 @@ def train_model():
     action_batch = torch.cat(batch.action)
     next_states_batch = torch.cat(batch.next_state)
     reward_batch = torch.cat(batch.reward)
-    not_done_batch = torch.cat(batch.not_done)
+    not_done_batch = torch.cat(tuple(torch.tensor([[item]], device=device, dtype=torch.bool) for item in batch.not_done))
 
     # Compute curr_Q = Q(s, a) - the model computes Q(s), then we select the columns of the taken actions.
     # Pros tips: First pass all s_batch through the network
     #            and then choose the relevant action for each state using the method 'gather'
-    # TODO: fill curr_Q
-    curr_Q = policy_net.forward(state_batch).gather(1,action_batch)
+    policy_forward = policy_net.forward(state_batch)
+    curr_Q = policy_forward.gather(1,action_batch)
 
     # Compute expected_Q (target value) for all states.
     # Don't forget that for terminal states we don't add the value of the next state.
     # Pros tips: Calculate the values for all next states ( Q_(s', max_a(Q_(s')) )
     #            and then mask next state's value with 0, where not_done is False (i.e., done).
-    # TODO: fill expected_Q
     next_estimate = target_net.forward(next_states_batch)
-    expected_not_masked = reward_batch + (training_params.gamma * torch.max(next_estimate,1)[0])
-    expected_Q = expected_not_masked[~not_done_batch] = 0.0
+    max_estimate = torch.max(next_estimate,1)[0]
+    expected_not_masked = reward_batch + (training_params['gamma'] * max_estimate)
+    expected_not_masked = expected_not_masked.reshape(256,1)
+    expected_Q = expected_not_masked * not_done_batch
 
     # Compute Huber loss. Smoother than MSE
     loss = F.smooth_l1_loss(curr_Q, expected_Q)
@@ -242,7 +249,7 @@ for i_episode in range(max_episodes):
     # update task score
     if min(all_scores[-5:]) > task_score:
         task_score = min(all_scores[-5:])
-        # TODO: store weights
+        torch.save(policy_net.state_dict(), 'best.dat')
 
 print('------------------------------------------------------------------------------')
 print('Final task score = ', task_score)

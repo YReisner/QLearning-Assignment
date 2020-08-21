@@ -1,6 +1,8 @@
 import numpy as np
 from collections import namedtuple
 
+np.random.seed(42)
+
 Transition = namedtuple('Transition',('state', 'action', 'next_state', 'reward', 'not_done'))
 
 
@@ -24,7 +26,7 @@ class ReplayBuffer(object):
 
     def sample(self, batch_size):
         indices = np.random.choice(len(self.memory),batch_size,replace=False)
-        return self.memory[indices]
+        return np.array(self.memory)[indices]
 
 
 

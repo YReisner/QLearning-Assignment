@@ -122,9 +122,14 @@ def train_model():
     #            and then mask next state's value with 0, where not_done is False (i.e., done).
     next_estimate = target_net.forward(next_states_batch)
     max_estimate = torch.max(next_estimate,1)[0]
-    expected_not_masked = reward_batch + (training_params['gamma'] * max_estimate)
-    expected_not_masked = expected_not_masked.reshape(256,1)
-    expected_Q = expected_not_masked * not_done_batch
+    masked_estimate = max_estimate.reshape(256,1) * not_done_batch
+    final_estimate = masked_estimate.reshape(256)
+    expected_Q = reward_batch + (training_params['gamma'] * final_estimate)
+    expected_Q = expected_Q.reshape(256,1)
+
+
+
+
 
     # Compute Huber loss. Smoother than MSE
     loss = F.smooth_l1_loss(curr_Q, expected_Q)
@@ -241,7 +246,7 @@ for i_episode in range(max_episodes):
     # hard target update. Copying all weights and biases in DQN
     if params.target_update == 'hard':
         # Copy the weights from policy_net to target_net after every x episodes
-        if i_episode % 15 == 0:
+        if i_episode % training_params['target_update_period'] == 0:
             target_net.load_state_dict(policy_net.state_dict())
 
 
@@ -256,3 +261,5 @@ print('Final task score = ', task_score)
 
 plt.ioff()
 plt.show()
+
+cartpole_play()
